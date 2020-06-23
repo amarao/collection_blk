@@ -1,0 +1,3 @@
+*.pyc
+ansible_collections/amarao/blk/tests/output/
+.venv
