@@ -18,7 +18,7 @@ module: blk_filter
 version_added: "2.10"
 author: "George Shuklin (@amarao)"
 short_description: Filter block devices based on their content
-requirements: [lsblk]
+requirements: [lsblk, wipefs, lsof]
 description: >
     Allows to filter list of block devices based on specific criteria
 options:
@@ -32,11 +32,13 @@ options:
     is_used:
         type: bool
         description:
-            - Filter devices when they are 'blank' and is not used
-              by any known subsytem (raid, parition, devce mapper, mount)
+            - Filter devices based on been used by any known subsystem
+              (raid, parition, devce mapper, fsmount, open by a process).
             - True means only used devices
             - False means only unused devices
-            - no value (omit) accepts both used and unused devices
+            - no value (omit) accepts both used and unused devices (skip test)
+            - Tests are based on lsblk (children and mountpoint attirbutes)
+              and lsof (check if opened by a process).
 
     is_blank:
         type: bool
