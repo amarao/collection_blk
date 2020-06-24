@@ -144,16 +144,24 @@ class BlkFilter(object):
         self.filters['is_used'] = self.module.params.get('is_used', None)
         self.filters['is_blank'] = self.module.params.get('is_blank', None)
 
+    def _is_used(self, device):
+        return bool(device.children)
+        #  add mount
+        #  add lsof
+
+    def _is_blank(self, device):
+        wipefs_output = self._check_with_wipefs(device.name)
+        return wipefs_output and self.module.params['is_used']
+
     def _fiter(self, device):
+        passed = True
         if 'is_used' in self.module.params:
-            return device.children and self.module.params['is_used']
+            passed &= self._is_used(device) == self.module.params['is_used']
 
         if 'is_blank' in self.module.params:
-            wipefs_output = self._check_with_wipefs(device.name)
-            return wipefs_output and self.module.params['is_used']
+            passed &= self._is_blank(device) == self.module.params['is_blank']
 
-        # no reasons to reject device, passed
-        return True
+        return passed
 
     def _check_with_wipefs(self, device_name):
         raise NotImplementedError
