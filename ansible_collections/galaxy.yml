@@ -7,6 +7,8 @@ authors:
   - George Shuklin
 description: Set of modules to work with block devices in Linux
 tags: [linux]
+license:
+- GPL-3.0-or-later
 repository: https://github.com/amarao/collection_blk/
 issues: https://github.com/amarao/collection_blk/issues
 homepage: https://github.com/amarao/collection_blk/
