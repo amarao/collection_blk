@@ -1,0 +1,15 @@
+---
+- hosts: test_target
+  collections:
+    - amarao.blk
+  tasks:
+    - name: Gather info
+      blk_filter:
+      become: true
+      register: dev
+    - assert:
+        that:
+          - dev.devices|length > 0
+          - dev.by_path|length > 0
+          - dev.by_name|length > 0
+
