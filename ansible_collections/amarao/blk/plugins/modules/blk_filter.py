@@ -33,12 +33,21 @@ options:
         type: bool
         description:
             - Filter devices based on been used by any known subsystem
-              (raid, parition, devce mapper, fsmount, open by a process).
+              (raid, parition, devce mapper, fs mount).
             - True means only used devices
             - False means only unused devices
             - no value (omit) accepts both used and unused devices (skip test)
             - Tests are based on lsblk (children and mountpoint attirbutes)
-              and lsof (check if opened by a process).
+
+    is_open:
+        type: bool
+        description:
+            - Filter devices based on output of lsof (if device is open by
+              a userspace process)
+            - True means only open devices
+            - False means only not-opened devices
+            - no value (omit) accepts both open and non-open devices
+              (skip test)
 
     is_blank:
         type: bool
@@ -49,83 +58,20 @@ options:
             - no value (omit) is means 'no wipefs validation'
 """
 
-missed = """
-    max_devices:
-        type: int
-        description:
-            - Maximum number of devices in output (may be smaller)
-            - Set to 1 to return a single device or no devices
-            -  int
-        description:
-            - Minimum amount of devices to find
-            - Module fails if number of filtered devices is less
-              than this number.
-            - not implemented
-
-
-    subsystems:
-        type: list
-        description:
-            - List of subsystems to check against
-            - values are per `lsblk -O` command (SUBSYS field)
-            - not implemented
-
-    is_sata:
-        type: bool
-        description:
-            - Filter based on 'tran' (transport) field of output of lsblk.
-            - True value accepts only sata devices
-            - False value skips sata devices
-            - no value (omit) accepts both sata and non-sata devices
-            - not implemented
-
-    ro:
-        type: bool
-        description:
-            - Filter RO devices (True for RO, False for non-ro)
-            - not implementedProbing
-            - stops if max_devices found, the rest is untested
-            - not implemented
-
-    min_deivces:
-        type: int
-        description:
-            - Minimum amount of devices to find
-            - Module fails if number of filtered devices is less
-              than this number.
-            - not implemented
-
-
-    subsystems:
-        type: list
-        description:
-            - List of subsystems to check against
-            - values are per `lsblk -O` command (SUBSYS field)
-            - not implemented
-
-    is_sata:
-        type: bool
-        description:
-            - Filter based on 'tran' (transport) field of output of lsblk.
-            - True value accepts only sata devices
-            - False value skips sata devices
-            - no value (omit) accepts both sata and non-sata devices
-            - not implemented
-
-    ro:
-        type: bool
-        description:
-            - Filter RO devices (True for RO, False for non-ro)
-            - not implemented
-"""
-
 EXAMPLES = """
-- name: Filter empty and unused devices
+- name: Find all empty, unused unopened devices
   blk_filter:
-    name: '{{ ansible_devices.keys() }}'
     is_used: false
-    is_blank: false
+    is_blank: true
+    is_open: false
   register: devices
+- name: Print full path to each found device
+  debug: var=item
+  loop: devices.by_path
+- name: Check if /dev/sdb is used
+  blk_filter:
+    device: /dev/sdb
+    is_used: false
 """
 
 
@@ -144,36 +90,68 @@ class BlkFilter(object):
         self.filters['is_used'] = self.module.params.get('is_used', None)
         self.filters['is_blank'] = self.module.params.get('is_blank', None)
 
+    def _is_open(self, device):
+        cmd = ['lsof', '/dev/' + device["name"]]
+        rc, out, err = self.module.run_command(cmd)
+        if err:
+            self.module.fail_json(
+                msg="Unable to run lsof. Error:" + err
+            )
+        if rc == 0 and not out:
+            return True
+        return False
+
     def _is_used(self, device):
-        return bool(device.children)
-        #  add mount
-        #  add lsof
+        have_children = bool(device.get("children"))
+        have_mountpoint = bool(device.get("mountpoint"))
+        return have_children or have_mountpoint
 
     def _is_blank(self, device):
-        wipefs_output = self._check_with_wipefs(device.name)
-        return wipefs_output and self.module.params['is_used']
+        # wipefs without '-a' key is just returning list of found
+        # inspected device is not modified
+        cmd = ['wipefs', '/dev/' + device["name"]]
+        rc, out, err = self.module.run_command(cmd)
+        if rc:
+            self.module.fail_json(
+                msg="Unable to run wipeof utility. Error:" + err
+            )
+        return bool(out)
 
-    def _fiter(self, device):
+    def _filter(self, device):
         passed = True
-        if 'is_used' in self.module.params:
+        if self.module.params['is_used'] is not None:
             passed &= self._is_used(device) == self.module.params['is_used']
 
-        if 'is_blank' in self.module.params:
+        if self.module.params['is_blank'] is not None:
             passed &= self._is_blank(device) == self.module.params['is_blank']
 
+        if self.module.params['is_open'] is not None:
+            passed &= self._is_open(device) == self.module.params['is_open']
         return passed
 
-    def _check_with_wipefs(self, device_name):
-        raise NotImplementedError
-
     def _prep_dev_list(self, raw_devlist):
-        raise NotImplementedError
+        if type(raw_devlist) == str:
+            raw_devlist = [raw_devlist]
+        for dev in raw_devlist:
+            if not dev.startswith('/dev/'):
+                yield '/dev/' + dev
+            else:
+                yield dev
+
+    def _by_path(self, devlist):
+        for dev in devlist:
+            yield('/dev/' + dev['name'])
+
+    def _by_name(self, devlist):
+        for dev in devlist:
+            yield(dev['name'])
 
     def run(self):
         cmd = ['lsblk', '-O', '--json']
         if 'devices' in self.module.params:
-            cmd += self._prep_dev_list(self.module.params['devices'])
-
+            cmd += list(
+                self._prep_dev_list(self.module.params.get('devices', []))
+            )
         rc, out, err = self.module.run_command(cmd, check_rc=True)
         if rc != 0:
             self.module.fail_json(
@@ -189,8 +167,12 @@ class BlkFilter(object):
                     (out, e)
                 )
             )
-        filtered_output = filter(self._filter, blklist['blockdevices'])
-        self.module.exit_json(devices=filtered_output)
+        filtered_output = list(filter(self._filter, blklist['blockdevices']))
+        self.module.exit_json(
+            devices=filtered_output,
+            by_path=list(self._by_path(filtered_output)),
+            by_name=list(self._by_name(filtered_output))
+        )
 
 
 def main():
@@ -198,11 +180,11 @@ def main():
         argument_spec={
             'name': {
                 'aliases': ['device', 'devices'],
-                'required': True,
                 'type': 'list'
             },
             'is_used': {'type': 'bool'},
-            'is_blank': {'type': 'bool'}
+            'is_blank': {'type': 'bool'},
+            'is_open': {'type': 'bool'}
         },
         supports_check_mode=True
     )
