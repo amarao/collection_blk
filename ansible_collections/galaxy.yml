@@ -1,0 +1,12 @@
+---
+namespace: amarao
+name: blk
+readme: README.md
+version: 0.1.0
+authors:
+  - George Shuklin
+description: Set of modules to work with block devices in Linux
+tags: [linux]
+repository: https://github.com/amarao/collection_blk/
+issues: https://github.com/amarao/collection_blk/issues
+homepage: https://github.com/amarao/collection_blk/
