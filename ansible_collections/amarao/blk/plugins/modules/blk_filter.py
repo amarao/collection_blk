@@ -115,7 +115,7 @@ class BlkFilter(object):
             self.module.fail_json(
                 msg="Unable to run wipeof utility. Error:" + err
             )
-        return bool(out)
+        return not bool(out)
 
     def _filter(self, device):
         passed = True
