@@ -55,7 +55,15 @@ options:
             - Filter using additional checks by wipefs
             - True allow devices which has nothing wipefs can recognize
             - False allow devices which has something wipefs recoginize
-            - no value (omit) is means 'no wipefs validation'
+            - no value (omit) means 'no wipefs validation'
+
+    is_rom:
+        type: bool
+        description:
+            - Filter devices based on type==rom
+            - True allow CD-ROM, DVD-ROM, etc (including virtual)
+            - False skip/reject CD/DVD-ROM
+            - no value (omit) means 'no filter for rom devices'
 """
 
 EXAMPLES = """
@@ -64,6 +72,7 @@ EXAMPLES = """
     is_used: false
     is_blank: true
     is_open: false
+    is_rom: false
   register: devices
 - name: Print full path to each found device
   debug: var=item
@@ -117,6 +126,9 @@ class BlkFilter(object):
             )
         return not bool(out)
 
+    def _is_rom(self, device):
+        return device.type == 'rom'
+
     def _filter(self, device):
         passed = True
         if self.module.params['is_used'] is not None:
@@ -127,6 +139,9 @@ class BlkFilter(object):
 
         if self.module.params['is_open'] is not None:
             passed &= self._is_open(device) == self.module.params['is_open']
+
+        if self.module.params['is_rom'] is not None:
+            passed &= self._is_rom(device) == self.module.params['is_rom']
         return passed
 
     def _prep_dev_list(self, raw_devlist):
@@ -150,7 +165,7 @@ class BlkFilter(object):
         cmd = ['lsblk', '-O', '--json']
         if 'devices' in self.module.params:
             cmd += list(
-                self._prep_dev_list(self.module.params.get('devices', []))
+                self. _prep_dev_list(self.module.params.get('devices', []))
             )
         rc, out, err = self.module.run_command(cmd, check_rc=True)
         if rc != 0:
@@ -184,7 +199,8 @@ def main():
             },
             'is_used': {'type': 'bool'},
             'is_blank': {'type': 'bool'},
-            'is_open': {'type': 'bool'}
+            'is_open': {'type': 'bool'},
+            'is_rom': {'type': 'bool'}
         },
         supports_check_mode=True
     )
