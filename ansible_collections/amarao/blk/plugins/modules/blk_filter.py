@@ -127,7 +127,7 @@ class BlkFilter(object):
         return not bool(out)
 
     def _is_rom(self, device):
-        return device.type == 'rom'
+        return device['type'] == 'rom'
 
     def _filter(self, device):
         passed = True

@@ -2,7 +2,7 @@
 namespace: amarao
 name: blk
 readme: README.md
-version: 0.1.4
+version: 0.1.5
 authors:
   - George Shuklin
 description: Set of modules to work with block devices in Linux
