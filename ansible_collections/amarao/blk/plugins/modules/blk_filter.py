@@ -131,17 +131,21 @@ class BlkFilter(object):
 
     def _filter(self, device):
         passed = True
+        if self.module.params['is_rom'] is not None:
+            passed &= self._is_rom(device) == self.module.params['is_rom']
+        if not passed:
+            return False
         if self.module.params['is_used'] is not None:
             passed &= self._is_used(device) == self.module.params['is_used']
-
+        if not passed:
+            return False
         if self.module.params['is_blank'] is not None:
             passed &= self._is_blank(device) == self.module.params['is_blank']
-
+        if not passed:
+            return False
         if self.module.params['is_open'] is not None:
             passed &= self._is_open(device) == self.module.params['is_open']
 
-        if self.module.params['is_rom'] is not None:
-            passed &= self._is_rom(device) == self.module.params['is_rom']
         return passed
 
     def _prep_dev_list(self, raw_devlist):
